@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>QuickLog</title>
+
+    <!-- PWA Settings -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="QuickLog">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <style>
+        :root {
+            --bg-dark: #1c1c2e;
+            --bg-light: #f2f2f7;
+            --accent-blue: #0a84ff;
+            --accent-red: #ff3b30;
+            --text-main: #ffffff;
+            --text-dark: #333333;
+            --text-gray: #8e8e93;
+            --border-color: #d1d1d6;
+
+            /* Safe area for iOS */
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --header-height: calc(50px + var(--safe-top));
+            --input-area-min-height: calc(120px + var(--safe-bottom));
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Header --- */
+        header {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            padding: var(--safe-top) 16px 0;
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .header-title {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sync-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            position: relative;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .sync-badge {
+            position: absolute;
+            top: -2px;
+            right: -6px;
+            background-color: var(--accent-red);
+            color: white;
+            font-size: 0.6rem;
+            font-weight: bold;
+            min-width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+        }
+
+        .disconnect-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        /* --- List Area --- */
+        .list-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 16px 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .date-header {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: var(--text-gray);
+            margin-top: 8px;
+            margin-bottom: 4px;
+        }
+
+        .entry-card {
+            background-color: white;
+            border-radius: 12px;
+            padding: 12px 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .entry-card.future {
+            border-left: 4px solid var(--accent-blue);
+        }
+
+        .entry-time {
+            font-size: 0.8rem;
+            color: var(--text-gray);
+        }
+
+        .entry-content {
+            font-size: 1rem;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .pending-mark {
+            color: #d1d1d6;
+            margin-left: 6px;
+            font-size: 0.8rem;
+        }
+
+        .edit-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: none;
+            border: none;
+            color: var(--text-gray);
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .empty-state {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-gray);
+            gap: 16px;
+            text-align: center;
+        }
+
+        .import-btn {
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* --- Input Area --- */
+        .input-area {
+            background-color: white;
+            border-top: 1px solid var(--border-color);
+            padding: 12px 16px calc(12px + var(--safe-bottom));
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .mode-switches {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mode-now {
+            background-color: var(--bg-dark);
+            color: white;
+        }
+
+        .mode-now.inactive {
+            background-color: var(--border-color);
+            color: var(--text-gray);
+        }
+
+        .mode-plan {
+            background-color: var(--accent-blue);
+            color: white;
+        }
+
+        .mode-plan.inactive {
+            background-color: var(--border-color);
+            color: var(--text-gray);
+        }
+
+        .datetime-inputs {
+            display: flex;
+            flex-direction: row;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .datetime-input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            background-color: var(--bg-light);
+            font-family: inherit;
+        }
+
+        .input-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            background-color: var(--bg-light);
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .icon-btn.recording {
+            background-color: var(--accent-red);
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .text-input {
+            flex-grow: 1;
+            min-height: 40px;
+            max-height: 110px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 1rem;
+            resize: none;
+            font-family: inherit;
+            line-height: 1.4;
+            background-color: var(--bg-light);
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            background-color: white;
+        }
+
+        .send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            background-color: var(--bg-dark);
+            color: white;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .send-btn:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
+
+        /* --- Modals --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background-color: white;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .location-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .location-item {
+            padding: 12px;
+            background-color: var(--bg-light);
+            border-radius: 8px;
+            border: none;
+            text-align: left;
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+
+        .location-item:active {
+            background-color: var(--border-color);
+        }
+
+        /* Edit Modal specifically */
+        .edit-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .edit-textarea {
+            width: 100%;
+            height: 100px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        .btn-save {
+            background-color: var(--bg-dark);
+            color: white;
+        }
+
+        .btn-delete {
+            background-color: white;
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+
+        /* --- Toasts & Banners --- */
+        .toast {
+            position: fixed;
+            bottom: calc(var(--input-area-min-height) + 20px);
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background-color: rgba(28, 28, 46, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s;
+            z-index: 50;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .error-banner {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            right: 0;
+            background-color: var(--accent-red);
+            color: white;
+            padding: 10px 16px;
+            font-size: 0.9rem;
+            text-align: center;
+            transform: translateY(-100%);
+            transition: transform 0.3s;
+            z-index: 5;
+        }
+
+        .error-banner.show {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-title">QuickLog</div>
+        <div class="header-controls">
+            <span id="headerTotalCount" style="font-size: 0.8rem; opacity: 0.8;">0件</span>
+            <button class="sync-btn" id="btnSync" title="カレンダー同期">
+                📅
+                <div class="sync-badge" id="syncBadge" style="display: none;">0</div>
+            </button>
+            <button class="disconnect-btn" id="btnDisconnect" style="display: none;">連携解除</button>
+        </div>
+    </header>
+
+    <!-- Error Banner -->
+    <div class="error-banner" id="errorBanner">エラーが発生しました</div>
+
+    <!-- List Area -->
+    <div class="list-area" id="listArea">
+        <!-- JS will populate items here -->
+
+        <div class="empty-state" id="emptyState">
+            <div>記録がありません</div>
+        </div>
+
+        <div class="import-section" id="importSection"
+            style="text-align: center; margin-top: 20px; padding-bottom: 20px;">
+            <button class="import-btn" id="btnImport">過去の記録をGoogleカレンダーから読み込む</button>
+            <div style="font-size: 0.8rem; color: var(--text-gray); margin-top: 8px;">※初回利用時のみ推奨</div>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="input-area" id="inputArea">
+        <div class="mode-switches">
+            <button class="mode-btn mode-now" id="btnModeNow">今すぐ記録</button>
+            <button class="mode-btn mode-plan inactive" id="btnModePlan">予定を追加</button>
+        </div>
+
+        <div class="datetime-inputs" id="datetimeInputs">
+            <input type="datetime-local" class="datetime-input" id="inputStartDt">
+            <span style="color: var(--text-gray)">～</span>
+            <input type="datetime-local" class="datetime-input" id="inputEndDt">
+        </div>
+
+        <div class="input-row">
+            <button class="icon-btn" id="btnLocation" title="現在地を取得">📍</button>
+            <button class="icon-btn" id="btnVoice" title="音声入力">🎤</button>
+            <textarea class="text-input" id="inputText" placeholder="ここに入力..." rows="1"></textarea>
+            <button class="send-btn" id="btnSend" disabled>↑</button>
+        </div>
+    </div>
+
+    <!-- Location Modal -->
+    <div class="modal-overlay" id="locationModal">
+        <div class="modal-content">
+            <div class="modal-title">現在地の候補</div>
+            <div id="locationLoading" style="text-align: center; color: var(--text-gray); padding: 20px 0;">
+                取得中...
+            </div>
+            <div class="location-list" id="locationList">
+                <!-- Location items will go here -->
+            </div>
+            <button class="modal-btn btn-cancel" onclick="app.closeLocationModal()">キャンセル</button>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-content">
+            <div class="modal-title">記録の編集</div>
+            <div class="edit-fields">
+                <input type="datetime-local" class="datetime-input" id="editStartDt">
+                <input type="datetime-local" class="datetime-input" id="editEndDt">
+                <textarea class="edit-textarea" id="editText"></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="modal-btn btn-delete" id="btnEditDelete">削除</button>
+                <div style="flex: 1; display:flex; gap: 8px;">
+                    <button class="modal-btn btn-cancel" onclick="app.closeEditModal()">キャンセル</button>
+                    <button class="modal-btn btn-save" id="btnEditSave">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">記録しました ✓</div>
+
+    <script>
+        // Placeholder for Application Logic (app.js)
+        const app = {
+            db: null,
+            tokenClient: null,
+            accessToken: null,
+            tokenExpiry: null,
+            refreshTimer: null,
+            clientId: '168669644981-at642rkfpbj1v4mbjtj1rd4osqn9uea9.apps.googleusercontent.com',
+            currentEditId: null,
+            pendingAuthAction: null,
+
+            init: async function () {
+                this.bindEvents();
+                try {
+                    await this.openDB();
+                    await this.renderList();
+                    this.updateSyncBadge();
+                    document.getElementById('inputText').focus();
+
+                    // Microphone permission cache (prevent startup beep)
+                    navigator.mediaDevices.getUserMedia({ audio: true })
+                        .then(stream => stream.getTracks().forEach(t => t.stop()))
+                        .catch(() => { }); // ignore error
+
+                    // Init Google Identity Services
+                    this.initGIS();
+                } catch (e) {
+                    this.showError('データーベースエラー: ' + e.message);
+                }
+            },
+
+            openDB: function () {
+                return new Promise((resolve, reject) => {
+                    // バージョンを2に上げて、以前のQuickLogDBがある場合でも確実にアップグレード（インデックス作成）を走らせる
+                    const request = indexedDB.open('QuickLogDB', 2);
+
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        let store;
+                        if (!db.objectStoreNames.contains('entries')) {
+                            store = db.createObjectStore('entries', { keyPath: 'id' });
+                        } else {
+                            store = e.target.transaction.objectStore('entries');
+                        }
+
+                        if (!store.indexNames.contains('timestamp')) {
+                            store.createIndex('timestamp', 'timestamp', { unique: false });
+                        }
+                    };
+
+                    request.onsuccess = (e) => {
+                        this.db = e.target.result;
+                        resolve(this.db);
+                    };
+
+                    request.onerror = (e) => {
+                        reject(e.target.error);
+                    };
+                });
+            },
+
+            getAllEntries: function () {
+                return new Promise((resolve, reject) => {
+                    if (!this.db) return resolve([]);
+                    try {
+                        const transaction = this.db.transaction(['entries'], 'readonly');
+                        const store = transaction.objectStore('entries');
+                        const request = store.getAll(); // Bypass index to avoid NotFoundError on old DBs
+
+                        request.onsuccess = () => {
+                            let entries = request.result || [];
+                            // Apply default values for old format compatibility
+                            entries = entries.map(entry => ({
+                                id: entry.id,
+                                content: entry.content || '',
+                                timestamp: entry.timestamp,
+                                endTimestamp: entry.endTimestamp || null,
+                                gcalId: entry.gcalId || null,
+                                colorId: entry.colorId || null,
+                                syncStatus: entry.syncStatus || 'pending'
+                            }));
+                            resolve(entries);
+                        };
+                        request.onerror = (e) => reject(e.target.error);
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            },
+
+            saveEntry: function (entry) {
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction(['entries'], 'readwrite');
+                    const store = transaction.objectStore('entries');
+                    const request = store.put(entry);
+
+                    request.onsuccess = () => resolve();
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            formatDateHeader: function (timestamp) {
+                const date = new Date(timestamp);
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+
+                const isSameDay = (d1, d2) =>
+                    d1.getDate() === d2.getDate() &&
+                    d1.getMonth() === d2.getMonth() &&
+                    d1.getFullYear() === d2.getFullYear();
+
+                if (isSameDay(date, today)) return '今日';
+                if (isSameDay(date, yesterday)) return '昨日';
+
+                const days = ['日', '月', '火', '水', '木', '金', '土'];
+                return `${date.getMonth() + 1}/${date.getDate()}(${days[date.getDay()]})`;
+            },
+
+            formatTime: function (timestamp) {
+                const date = new Date(timestamp);
+                return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            },
+
+            renderList: async function () {
+                const listArea = document.getElementById('listArea');
+                const emptyState = document.getElementById('emptyState');
+
+                // Clear existing items except emptyState and importSection
+                Array.from(listArea.children).forEach(child => {
+                    if (child.id !== 'emptyState' && child.id !== 'importSection') child.remove();
+                });
+
+                const entries = await this.getAllEntries();
+
+                // Filter out delete_pending
+                const visibleEntries = entries.filter(e => e.syncStatus !== 'delete_pending');
+
+                document.getElementById('headerTotalCount').textContent = visibleEntries.length + '件';
+
+                if (visibleEntries.length === 0) {
+                    emptyState.style.display = 'flex';
+                } else {
+                    emptyState.style.display = 'none';
+                }
+
+                // 初回インポートボタンの表示制御（すでにGCal由来のデータがあれば隠す）
+                const hasImported = entries.some(e => e.gcalId && e.syncStatus === 'synced');
+                document.getElementById('importSection').style.display = hasImported ? 'none' : 'block';
+
+                const now = Date.now();
+                const pastEntries = visibleEntries.filter(e => e.timestamp <= now).sort((a, b) => b.timestamp - a.timestamp);
+                const futureEntries = visibleEntries.filter(e => e.timestamp > now).sort((a, b) => a.timestamp - b.timestamp); // 今に近い予定から表示
+
+                // Render Future Entries
+                if (futureEntries.length > 0) {
+                    const header = document.createElement('div');
+                    header.className = 'date-header';
+                    header.textContent = '⏰ 予定';
+                    listArea.appendChild(header);
+
+                    futureEntries.forEach(entry => this.appendEntryCard(listArea, entry, true));
+                }
+
+                // Render Past Entries grouped by date
+                let currentDateStr = '';
+                pastEntries.forEach(entry => {
+                    const dateStr = this.formatDateHeader(entry.timestamp);
+                    if (dateStr !== currentDateStr) {
+                        const header = document.createElement('div');
+                        header.className = 'date-header';
+                        header.textContent = dateStr;
+                        listArea.appendChild(header);
+                        currentDateStr = dateStr;
+                    }
+                    this.appendEntryCard(listArea, entry, false);
+                });
+            },
+
+            appendEntryCard: function (container, entry, isFuture) {
+                const card = document.createElement('div');
+                card.className = `entry-card ${isFuture ? 'future' : ''}`;
+                card.dataset.id = entry.id;
+
+                let timeStr = this.formatTime(entry.timestamp);
+                if (entry.endTimestamp) {
+                    timeStr += ` ～ ${this.formatTime(entry.endTimestamp)}`;
+                }
+
+                const pendingHtml = entry.syncStatus === 'pending' ? '<span class="pending-mark">●</span>' : '';
+
+                card.innerHTML = `
+                    <div class="entry-time">${timeStr}</div>
+                    <div class="entry-content">${this.escapeHTML(entry.content)}${pendingHtml}</div>
+                    <button class="edit-btn" onclick="app.openEditModal('${entry.id}')">✏️</button>
+                `;
+
+                // Tap to edit
+                card.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'BUTTON') {
+                        this.openEditModal(entry.id);
+                    }
+                });
+
+                container.appendChild(card);
+            },
+
+            escapeHTML: function (str) {
+                return str.replace(/[&<>'"]/g,
+                    tag => ({
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        "'": '&#39;',
+                        '"': '&quot;'
+                    }[tag])
+                );
+            },
+
+            updateSyncBadge: async function () {
+                const entries = await this.getAllEntries();
+                const pendingCount = entries.filter(e => e.syncStatus === 'pending' || e.syncStatus === 'delete_pending').length;
+
+                const badge = document.getElementById('syncBadge');
+                if (pendingCount > 0) {
+                    badge.textContent = pendingCount;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            },
+
+            handleSend: async function () {
+                const inputText = document.getElementById('inputText');
+                const content = inputText.value.trim();
+
+                if (!content) return;
+
+                const isPlanMode = document.getElementById('btnModePlan').classList.contains('inactive') === false;
+
+                let startTs, endTs = null;
+                let colorId = isPlanMode ? '3' : null;
+
+                const startVal = document.getElementById('inputStartDt').value;
+                const endVal = document.getElementById('inputEndDt').value;
+
+                if (!startVal) {
+                    this.showError('開始日時を入力してください');
+                    return;
+                }
+
+                startTs = new Date(startVal).getTime();
+                if (endVal) {
+                    endTs = new Date(endVal).getTime();
+                    if (endTs <= startTs) {
+                        this.showError('終了日時は開始日時より後である必要があります');
+                        return;
+                    }
+                }
+
+                const entry = {
+                    id: `${startTs}_${Math.random().toString(36).substr(2, 9)}`,
+                    content: content,
+                    timestamp: startTs,
+                    endTimestamp: endTs,
+                    gcalId: null,
+                    colorId: colorId,
+                    syncStatus: 'pending'
+                };
+
+                try {
+                    await this.saveEntry(entry);
+                    inputText.value = '';
+                    inputText.style.height = '40px';
+                    document.getElementById('btnSend').disabled = true;
+
+                    if (isPlanMode) {
+                        // Switch back to normal mode
+                        document.getElementById('btnModeNow').click();
+                        this.showToast('予定を追加しました ✓');
+                    } else {
+                        this.showToast('記録しました ✓');
+                    }
+
+                    await this.renderList();
+                    this.updateSyncBadge();
+                } catch (e) {
+                    this.showError('保存に失敗しました');
+                }
+            },
+
+            bindEvents: function () {
+                // UI interaction bindings
+                const inputText = document.getElementById('inputText');
+                const btnSend = document.getElementById('btnSend');
+                const btnModeNow = document.getElementById('btnModeNow');
+                const btnModePlan = document.getElementById('btnModePlan');
+                const datetimeInputs = document.getElementById('datetimeInputs');
+
+                // Auto-resize textarea
+                inputText.addEventListener('input', function () {
+                    this.style.height = '40px';
+                    this.style.height = Math.min(this.scrollHeight, 110) + 'px';
+                    btnSend.disabled = this.value.trim().length === 0;
+                });
+
+                const setNowDefaults = () => {
+                    const now = new Date();
+                    const nowEnd = new Date(now.getTime() + 5 * 60 * 1000); // +5 mins
+                    document.getElementById('inputStartDt').value = this.toLocalISOString(now).slice(0, 16);
+                    document.getElementById('inputEndDt').value = this.toLocalISOString(nowEnd).slice(0, 16);
+                };
+
+                // Mode switching
+                btnModeNow.addEventListener('click', () => {
+                    btnModeNow.classList.remove('inactive');
+                    btnModePlan.classList.add('inactive');
+                    setNowDefaults();
+                });
+
+                btnModePlan.addEventListener('click', () => {
+                    btnModePlan.classList.remove('inactive');
+                    btnModeNow.classList.add('inactive');
+
+                    // Set default plan time: tomorrow same time
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setMinutes(0); // Optional: round to hour
+                    const tomorrowEnd = new Date(tomorrow.getTime() + 60 * 60 * 1000); // +1 hour
+
+                    document.getElementById('inputStartDt').value = this.toLocalISOString(tomorrow).slice(0, 16);
+                    document.getElementById('inputEndDt').value = this.toLocalISOString(tomorrowEnd).slice(0, 16);
+                });
+
+                document.getElementById('inputStartDt').addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        const sd = new Date(e.target.value);
+                        const edInput = document.getElementById('inputEndDt');
+                        const ed = edInput.value ? new Date(edInput.value) : null;
+                        const isPlanMode = document.getElementById('btnModePlan').classList.contains('inactive') === false;
+
+                        // Auto-set end time based on mode if not set or invalid
+                        if (!ed || ed <= sd) {
+                            const offset = isPlanMode ? (60 * 60 * 1000) : (5 * 60 * 1000);
+                            const newEd = new Date(sd.getTime() + offset);
+                            edInput.value = this.toLocalISOString(newEd).slice(0, 16);
+                        }
+                    }
+                });
+
+                btnSend.addEventListener('click', () => this.handleSend());
+
+                document.getElementById('btnLocation').addEventListener('click', () => this.handleLocation());
+                document.getElementById('btnVoice').addEventListener('click', () => this.handleVoice());
+                document.getElementById('btnSync').addEventListener('click', () => this.requestSync());
+                document.getElementById('btnDisconnect').addEventListener('click', () => this.disconnectGoogle());
+                document.getElementById('btnImport').addEventListener('click', () => this.importFromGCal());
+
+                inputText.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.handleSend();
+                    }
+                });
+
+                document.getElementById('btnEditSave').addEventListener('click', () => this.handleEditSave());
+                document.getElementById('btnEditDelete').addEventListener('click', () => this.handleEditDelete());
+
+                // Modals
+                document.getElementById('locationModal').addEventListener('click', (e) => {
+                    if (e.target.id === 'locationModal') this.closeLocationModal();
+                });
+
+                // Initialize default values for the first time
+                setNowDefaults();
+                document.getElementById('editModal').addEventListener('click', (e) => {
+                    if (e.target.id === 'editModal') this.closeEditModal();
+                });
+            },
+
+            showToast: function (message) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            },
+
+            showError: function (message) {
+                const banner = document.getElementById('errorBanner');
+                banner.textContent = message;
+                banner.classList.add('show');
+                setTimeout(() => banner.classList.remove('show'), 5000);
+            },
+
+            closeLocationModal: function () {
+                document.getElementById('locationModal').classList.remove('active');
+            },
+
+            closeEditModal: function () {
+                document.getElementById('editModal').classList.remove('active');
+                this.currentEditId = null;
+            },
+
+            toLocalISOString: function (date) {
+                const pad = n => n < 10 ? '0' + n : n;
+                return date.getFullYear() + '-' +
+                    pad(date.getMonth() + 1) + '-' +
+                    pad(date.getDate()) + 'T' +
+                    pad(date.getHours()) + ':' +
+                    pad(date.getMinutes());
+            },
+
+            openEditModal: async function (id) {
+                try {
+                    const entries = await this.getAllEntries();
+                    const entry = entries.find(e => e.id === id);
+                    if (!entry) return;
+
+                    this.currentEditId = id;
+
+                    document.getElementById('editStartDt').value = this.toLocalISOString(new Date(entry.timestamp)).slice(0, 16);
+                    document.getElementById('editEndDt').value = entry.endTimestamp ? this.toLocalISOString(new Date(entry.endTimestamp)).slice(0, 16) : '';
+                    document.getElementById('editText').value = entry.content;
+
+                    document.getElementById('editModal').classList.add('active');
+                } catch (e) {
+                    this.showError('エントリの読み込みに失敗しました');
+                }
+            },
+
+            handleEditSave: async function () {
+                if (!this.currentEditId) return;
+                try {
+                    const sv = document.getElementById('editStartDt').value;
+                    const ev = document.getElementById('editEndDt').value;
+                    const txt = document.getElementById('editText').value.trim();
+
+                    if (!sv || !txt) {
+                        this.showError('必須項目が入力されていません');
+                        return;
+                    }
+
+                    const entries = await this.getAllEntries();
+                    const entry = entries.find(e => e.id === this.currentEditId);
+                    if (!entry) return;
+
+                    entry.timestamp = new Date(sv).getTime();
+                    entry.endTimestamp = ev ? new Date(ev).getTime() : null;
+                    entry.content = txt;
+                    entry.syncStatus = 'pending'; // mark modified
+
+                    await this.saveEntry(entry);
+                    this.closeEditModal();
+                    await this.renderList();
+                    this.updateSyncBadge();
+                } catch (e) {
+                    this.showError('保存に失敗しました: ' + e.message);
+                }
+            },
+
+            handleEditDelete: async function () {
+                if (!this.currentEditId) return;
+                try {
+                    const entries = await this.getAllEntries();
+                    const entry = entries.find(e => e.id === this.currentEditId);
+                    if (!entry) return;
+
+                    if (entry.gcalId) {
+                        entry.syncStatus = 'delete_pending';
+                        await this.saveEntry(entry);
+                    } else {
+                        // physically delete if not synced to GCal yet
+                        const transaction = this.db.transaction(['entries'], 'readwrite');
+                        const store = transaction.objectStore('entries');
+                        store.delete(entry.id);
+
+                        // Wait for transaction to complete
+                        await new Promise((resolve, reject) => {
+                            transaction.oncomplete = () => resolve();
+                            transaction.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+                    this.closeEditModal();
+                    await this.renderList();
+                    this.updateSyncBadge();
+                } catch (e) {
+                    this.showError('削除に失敗しました: ' + e.message);
+                }
+            },
+
+            // --- Geolocation (Nominatim API) --- //
+            handleLocation: function () {
+                const modal = document.getElementById('locationModal');
+                const list = document.getElementById('locationList');
+                const loading = document.getElementById('locationLoading');
+
+                modal.classList.add('active');
+                list.innerHTML = '';
+                loading.style.display = 'block';
+
+                if (!navigator.geolocation) {
+                    this.showError('現在地機能がサポートされていません');
+                    this.closeLocationModal();
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
+                        try {
+                            const lat = pos.coords.latitude;
+                            const lon = pos.coords.longitude;
+                            // Nominatim API call
+                            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=ja`;
+                            const res = await fetch(url, { headers: { 'User-Agent': 'QuickLog/1.0' } });
+                            if (!res.ok) throw new Error('API Error');
+
+                            const data = await res.json();
+                            const addr = data.address || {};
+
+                            const amenity = addr.amenity || addr.shop || addr.office || addr.tourism || addr.leisure || addr.building;
+                            const road = addr.road;
+                            const suburb = addr.suburb || addr.neighbourhood;
+                            const city = addr.city || addr.town || addr.village || addr.county;
+
+                            const candidates = new Set();
+
+                            if (amenity) candidates.add(amenity);
+                            if (amenity && road) candidates.add(`${amenity} (${road})`);
+                            if (road && (suburb || city)) candidates.add(`${road} (${suburb || city})`);
+                            if (suburb && city) candidates.add(`${suburb}, ${city}`);
+                            else if (city) candidates.add(city);
+
+                            if (candidates.size === 0) {
+                                candidates.add(data.display_name.split(',')[0]); // fallback
+                            }
+
+                            loading.style.display = 'none';
+
+                            Array.from(candidates).slice(0, 4).forEach(text => {
+                                const btn = document.createElement('button');
+                                btn.className = 'location-item';
+                                btn.textContent = text;
+                                btn.onclick = () => {
+                                    const input = document.getElementById('inputText');
+                                    input.value = input.value ? input.value + ' ' + text : text;
+                                    input.dispatchEvent(new Event('input')); // trigger resize
+                                    this.closeLocationModal();
+                                    input.focus();
+                                };
+                                list.appendChild(btn);
+                            });
+
+                        } catch (e) {
+                            loading.style.display = 'none';
+                            this.showError('地点情報の取得に失敗しました');
+                            this.closeLocationModal();
+                        }
+                    },
+                    (err) => {
+                        loading.style.display = 'none';
+                        if (err.code === err.PERMISSION_DENIED) {
+                            this.showError('位置情報の許可が必要です');
+                        } else if (err.code === err.TIMEOUT) {
+                            this.showError('位置情報の取得がタイムアウトしました');
+                        } else {
+                            this.showError('現在地の取得に失敗しました');
+                        }
+                        this.closeLocationModal();
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            },
+
+            // --- Voice Input (Web Speech API) --- //
+            handleVoice: function () {
+                const btnVoice = document.getElementById('btnVoice');
+                const inputText = document.getElementById('inputText');
+
+                if (this.recognition && this.isRecording) {
+                    this.recognition.stop();
+                    return;
+                }
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    this.showError('音声入力がサポートされていません');
+                    return;
+                }
+
+                if (!this.recognition) {
+                    this.recognition = new SpeechRecognition();
+                    this.recognition.lang = 'ja-JP';
+                    this.recognition.interimResults = true;
+                    this.recognition.continuous = false;
+
+                    this.recognition.onstart = () => {
+                        this.isRecording = true;
+                        btnVoice.classList.add('recording');
+                        btnVoice.textContent = '⏹';
+                        this.voiceStartText = inputText.value;
+                    };
+
+                    this.recognition.onresult = (event) => {
+                        let interimTranscript = '';
+                        let finalTranscript = '';
+
+                        for (let i = event.resultIndex; i < event.results.length; ++i) {
+                            if (event.results[i].isFinal) {
+                                finalTranscript += event.results[i][0].transcript;
+                            } else {
+                                interimTranscript += event.results[i][0].transcript;
+                            }
+                        }
+
+                        const currentText = this.voiceStartText + (this.voiceStartText && (finalTranscript || interimTranscript) ? ' ' : '');
+                        inputText.value = currentText + finalTranscript + interimTranscript;
+                        inputText.dispatchEvent(new Event('input')); // trigger resize
+
+                        if (finalTranscript) {
+                            this.voiceStartText = inputText.value;
+                        }
+                    };
+
+                    this.recognition.onerror = (event) => {
+                        if (event.error !== 'no-speech') {
+                            this.showError('音声入力エラー: ' + event.error);
+                        }
+                        this.stopRecording();
+                    };
+
+                    this.recognition.onend = () => {
+                        this.stopRecording();
+                    };
+                }
+
+                try {
+                    this.recognition.start();
+                } catch (e) { /* ignore if already started */ }
+            },
+
+            stopRecording: function () {
+                this.isRecording = false;
+                const btnVoice = document.getElementById('btnVoice');
+                btnVoice.classList.remove('recording');
+                btnVoice.textContent = '🎤';
+                document.getElementById('inputText').focus();
+            },
+
+            // --- Google Identity Services & Calendar Sync --- //
+            initGIS: function () {
+                if (typeof google === 'undefined' || !google.accounts) {
+                    setTimeout(() => this.initGIS(), 200);
+                    return;
+                }
+
+                this.tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: this.clientId,
+                    scope: 'https://www.googleapis.com/auth/calendar.events',
+                    callback: (tokenResponse) => {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            this.accessToken = tokenResponse.access_token;
+                            // GIS tokens are valid for 3600 seconds. We refresh 5 mins earlier.
+                            this.tokenExpiry = Date.now() + ((tokenResponse.expires_in - 300) * 1000);
+                            localStorage.setItem('ql_token', this.accessToken);
+                            localStorage.setItem('ql_expiry', this.tokenExpiry);
+
+                            this.updateAuthUI(true);
+                            this.scheduleTokenRefresh();
+
+                            if (this.pendingAuthAction === 'import') {
+                                this.doImport();
+                            } else {
+                                this.doSync(); // Resume sync
+                            }
+                            this.pendingAuthAction = null;
+                        } else {
+                            this.showError('Google認証に失敗しました');
+                        }
+                    }
+                });
+
+                // Restore from local storage
+                const savedToken = localStorage.getItem('ql_token');
+                const savedExpiry = localStorage.getItem('ql_expiry');
+                if (savedToken && savedExpiry && Number(savedExpiry) > Date.now()) {
+                    this.accessToken = savedToken;
+                    this.tokenExpiry = Number(savedExpiry);
+                    this.updateAuthUI(true);
+                    this.scheduleTokenRefresh();
+                } else if (savedToken) {
+                    // Expired or invalid
+                    this.disconnectGoogle();
+                }
+            },
+
+            updateAuthUI: function (isAuthenticated) {
+                document.getElementById('btnDisconnect').style.display = isAuthenticated ? 'block' : 'none';
+            },
+
+            scheduleTokenRefresh: function () {
+                if (this.refreshTimer) clearTimeout(this.refreshTimer);
+                if (!this.tokenExpiry) return;
+
+                const timeToRefresh = this.tokenExpiry - Date.now();
+                if (timeToRefresh > 0) {
+                    this.refreshTimer = setTimeout(() => {
+                        if (this.tokenClient) {
+                            this.tokenClient.requestAccessToken({ prompt: '' });
+                        }
+                    }, timeToRefresh);
+                }
+            },
+
+            disconnectGoogle: function () {
+                this.accessToken = null;
+                this.tokenExpiry = null;
+                localStorage.removeItem('ql_token');
+                localStorage.removeItem('ql_expiry');
+                if (this.refreshTimer) clearTimeout(this.refreshTimer);
+                this.updateAuthUI(false);
+                this.showToast('連携を解除しました');
+            },
+
+            requestSync: async function () {
+                if (!this.tokenClient) {
+                    this.showError('Google連携の準備中です');
+                    return;
+                }
+
+                if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now()) {
+                    // 同期処理を完了させてからGoogleカレンダーを開く
+                    this.showToast('カレンダーに同期中です...');
+                    await this.doSync();
+                    window.open('https://calendar.google.com/', '_blank');
+                } else {
+                    // 未認証の場合はポップアップ競合を避けるためカレンダーを開かず、認証フローのみ開始する
+                    this.pendingAuthAction = 'sync';
+                    this.tokenClient.requestAccessToken({ prompt: '' });
+                }
+            },
+
+            doSync: async function () {
+                try {
+                    const entries = await this.getAllEntries();
+                    const targets = entries.filter(e => e.syncStatus === 'pending' || e.syncStatus === 'delete_pending');
+
+                    if (targets.length === 0) {
+                        this.showToast('同期済みです ✓');
+                        return;
+                    }
+
+                    let successCount = 0;
+                    let failCount = 0;
+
+                    for (const entry of targets) {
+                        try {
+                            if (entry.syncStatus === 'delete_pending' && entry.gcalId) {
+                                await this.gcalApiRequest('DELETE', `/calendars/primary/events/${entry.gcalId}`);
+                                // Remove physically from DB as per spec
+                                const transaction = this.db.transaction(['entries'], 'readwrite');
+                                const store = transaction.objectStore('entries');
+                                store.delete(entry.id);
+                                successCount++;
+                            } else if (entry.syncStatus === 'pending') {
+                                const eventBody = {
+                                    summary: entry.content,
+                                    start: { dateTime: new Date(entry.timestamp).toISOString() },
+                                    end: { dateTime: new Date(entry.endTimestamp || (entry.timestamp + 60000)).toISOString() },
+                                    extendedProperties: { private: { source: 'quicklog' } }
+                                };
+                                if (entry.colorId) eventBody.colorId = entry.colorId;
+
+                                if (entry.gcalId) {
+                                    // Update
+                                    await this.gcalApiRequest('PUT', `/calendars/primary/events/${entry.gcalId}`, eventBody);
+                                } else {
+                                    // Create
+                                    const res = await this.gcalApiRequest('POST', '/calendars/primary/events', eventBody);
+                                    entry.gcalId = res.id;
+                                }
+                                entry.syncStatus = 'synced';
+                                await this.saveEntry(entry);
+                                successCount++;
+                            }
+                        } catch (err) {
+                            console.error('Item sync failed', entry, err);
+                            failCount++;
+                            if (err.status === 401) {
+                                this.disconnectGoogle(); // Invalid token
+                                throw err;
+                            }
+                        }
+                    }
+
+                    if (failCount > 0) {
+                        this.showError(`${failCount}件のエラーが発生しました`);
+                    } else if (successCount > 0) {
+                        this.showToast(`${successCount}件同期しました ✓`);
+                    }
+
+                    await this.renderList();
+                    this.updateSyncBadge();
+                } catch (e) {
+                    if (e.status !== 401) {
+                        this.showError('同期処理でエラーが発生しました');
+                    }
+                }
+            },
+
+            importFromGCal: function () {
+                if (!this.tokenClient) {
+                    this.showError('Google連携の準備中です');
+                    return;
+                }
+
+                if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now()) {
+                    this.doImport();
+                } else {
+                    this.pendingAuthAction = 'import';
+                    this.tokenClient.requestAccessToken({ prompt: '' });
+                }
+            },
+
+            doImport: async function () {
+                const btn = document.getElementById('btnImport');
+                btn.disabled = true;
+                btn.textContent = '読み込み中...';
+
+                try {
+                    const timeMin = new Date();
+                    timeMin.setDate(timeMin.getDate() - 90);
+                    const timeMax = new Date();
+                    timeMax.setDate(timeMax.getDate() + 60);
+
+                    const res = await this.gcalApiRequest('GET',
+                        `/calendars/primary/events?timeMin=${encodeURIComponent(timeMin.toISOString())}&timeMax=${encodeURIComponent(timeMax.toISOString())}&maxResults=500&singleEvents=true&orderBy=startTime`
+                    );
+
+                    const existingEntries = await this.getAllEntries();
+                    const existingGcalIds = new Set(existingEntries.map(e => e.gcalId).filter(id => id));
+
+                    let imported = 0;
+                    for (const item of (res.items || [])) {
+                        if (existingGcalIds.has(item.id)) continue;
+
+                        const startTs = new Date(item.start.dateTime || item.start.date).getTime();
+                        const endTs = item.end ? new Date(item.end.dateTime || item.end.date).getTime() : null;
+
+                        const newEntry = {
+                            id: `${startTs}_${Math.random().toString(36).substr(2, 9)}`,
+                            content: item.summary || '',
+                            timestamp: startTs,
+                            endTimestamp: endTs,
+                            gcalId: item.id,
+                            colorId: item.colorId || null,
+                            syncStatus: 'synced'
+                        };
+                        await this.saveEntry(newEntry);
+                        imported++;
+                    }
+
+                    this.showToast(`${imported}件読み込みました`);
+                    await this.renderList();
+                    this.updateSyncBadge();
+                } catch (e) {
+                    if (e.status === 401) {
+                        this.disconnectGoogle();
+                    } else {
+                        this.showError('読み込みに失敗しました');
+                    }
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '過去の記録をGoogleカレンダーから読み込む';
+
+                    const existingEntries = await this.getAllEntries();
+                    const hasImported = existingEntries.some(e => e.gcalId && e.syncStatus === 'synced');
+                    document.getElementById('importSection').style.display = hasImported ? 'none' : 'block';
+                }
+            },
+
+            gcalApiRequest: async function (method, path, body = null) {
+                const headers = {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Content-Type': 'application/json'
+                };
+
+                const conf = { method, headers };
+                if (body) conf.body = JSON.stringify(body);
+
+                const res = await fetch(`https://www.googleapis.com/calendar/v3${path}`, conf);
+                if (!res.ok) {
+                    const err = new Error('GCal API Error');
+                    err.status = res.status;
+                    throw err;
+                }
+
+                if (method !== 'DELETE') {
+                    return res.json();
+                }
+                return null;
+            }
+        };
+
+        // Boot
+        window.addEventListener('load', () => {
+            app.init();
+
+            // Check speech support
+            if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+                document.getElementById('btnVoice').style.opacity = '0.3';
+                document.getElementById('btnVoice').title = '非対応ブラウザ';
+            }
+        });
+
+        // Handle returning from background / other tabs
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted && app.db) {
+                app.renderList();
+                app.updateSyncBadge();
+            }
+        });
+    </script>
+
+    <!-- Google Identity Services (Load async) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+
+</html>
