@@ -780,7 +780,40 @@
                     header.textContent = '⏰ 予定';
                     listArea.appendChild(header);
 
-                    futureEntries.forEach(entry => this.appendEntryCard(listArea, entry, true));
+                    const maxVisible = 2;
+                    futureEntries.slice(0, maxVisible).forEach(entry => this.appendEntryCard(listArea, entry, true));
+
+                    if (futureEntries.length > maxVisible) {
+                        const expandContainer = document.createElement('div');
+                        expandContainer.id = 'futureExpandContainer';
+                        expandContainer.style.display = 'none';
+                        futureEntries.slice(maxVisible).forEach(entry => this.appendEntryCard(expandContainer, entry, true));
+
+                        const toggleBtn = document.createElement('button');
+                        toggleBtn.style.background = 'none';
+                        toggleBtn.style.border = 'none';
+                        toggleBtn.style.color = 'var(--accent-blue)';
+                        toggleBtn.style.fontWeight = 'bold';
+                        toggleBtn.style.padding = '8px 0';
+                        toggleBtn.style.cursor = 'pointer';
+                        toggleBtn.style.fontSize = '0.9rem';
+                        toggleBtn.textContent = `他 ${futureEntries.length - maxVisible} 件の予定を表示 ▼`;
+
+                        toggleBtn.onclick = () => {
+                            if (expandContainer.style.display === 'none') {
+                                expandContainer.style.display = 'flex';
+                                expandContainer.style.flexDirection = 'column';
+                                expandContainer.style.gap = '12px';
+                                toggleBtn.textContent = '予定を閉じる ▲';
+                            } else {
+                                expandContainer.style.display = 'none';
+                                toggleBtn.textContent = `他 ${futureEntries.length - maxVisible} 件の予定を表示 ▼`;
+                            }
+                        };
+
+                        listArea.appendChild(toggleBtn);
+                        listArea.appendChild(expandContainer);
+                    }
                 }
 
                 // Render Past Entries grouped by date
@@ -830,6 +863,7 @@
 
                 card.addEventListener('touchstart', (e) => {
                     startX = e.touches[0].clientX;
+                    currentX = startX;
                     isDragging = true;
                     card.style.transition = 'none';
                 }, { passive: true });
