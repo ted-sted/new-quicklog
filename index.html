@@ -1282,27 +1282,43 @@
 
                             const data = await res.json();
                             const addr = data.address || {};
-
-                            const amenity = addr.amenity || addr.shop || addr.office || addr.tourism || addr.leisure || addr.building;
-                            const road = addr.road;
-                            const suburb = addr.suburb || addr.neighbourhood;
-                            const city = addr.city || addr.town || addr.village || addr.county;
-
                             const candidates = new Set();
 
-                            if (amenity) candidates.add(amenity);
-                            if (amenity && road) candidates.add(`${amenity} (${road})`);
-                            if (road && (suburb || city)) candidates.add(`${road} (${suburb || city})`);
-                            if (suburb && city) candidates.add(`${suburb}, ${city}`);
-                            else if (city) candidates.add(city);
+                            const amenity = addr.amenity || addr.shop || addr.office || addr.tourism || addr.leisure || addr.building;
+                            const suburb = addr.quarter || addr.neighbourhood || addr.suburb || '';
+                            const city = addr.city || addr.ward || addr.town || addr.village || addr.county || '';
+                            const road = addr.road || '';
 
-                            if (candidates.size === 0) {
-                                candidates.add(data.display_name.split(',')[0]); // fallback
+                            // 1. 施設名があれば最優先
+                            if (amenity) candidates.add(amenity);
+
+                            // 2. より詳細な地域名（例：新宿区西新宿二丁目）
+                            if (city && suburb) {
+                                candidates.add(`${city}${suburb}`);
+                                if (amenity) candidates.add(`${city}${suburb} ${amenity}`);
+                            } else if (suburb) {
+                                candidates.add(suburb);
+                            } else if (city) {
+                                candidates.add(city);
+                            }
+
+                            // 3. 通りの名前（例：都庁通り (西新宿二丁目)）
+                            if (road && suburb) candidates.add(`${road} (${suburb})`);
+
+                            // 4. Nominatimの display_name ベースのフォールバック
+                            if (data.display_name) {
+                                const parts = data.display_name.split(', ');
+                                if (parts[0]) candidates.add(parts[0]);
+                                if (parts.length > 1) {
+                                    // 最初の2~3要素を使って詳細な住所候補を作る (例: "西新宿二丁目都庁通り")
+                                    const detailed = parts.slice(0, 3).filter(p => p !== '日本' && !p.match(/^[0-9]{3}-[0-9]{4}$/)).reverse().join('');
+                                    if (detailed) candidates.add(detailed);
+                                }
                             }
 
                             loading.style.display = 'none';
 
-                            Array.from(candidates).slice(0, 4).forEach(text => {
+                            Array.from(candidates).slice(0, 5).forEach(text => {
                                 const btn = document.createElement('button');
                                 btn.className = 'location-item';
                                 btn.textContent = text;
