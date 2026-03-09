@@ -725,6 +725,8 @@
                 const today = new Date();
                 const yesterday = new Date(today);
                 yesterday.setDate(yesterday.getDate() - 1);
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
 
                 const isSameDay = (d1, d2) =>
                     d1.getDate() === d2.getDate() &&
@@ -733,6 +735,7 @@
 
                 if (isSameDay(date, today)) return '今日';
                 if (isSameDay(date, yesterday)) return '昨日';
+                if (isSameDay(date, tomorrow)) return '明日';
 
                 const days = ['日', '月', '火', '水', '木', '金', '土'];
                 return `${date.getMonth() + 1}/${date.getDate()}(${days[date.getDay()]})`;
@@ -843,9 +846,22 @@
                 card.className = `entry-card ${isFuture ? 'future' : ''}`;
                 card.dataset.id = entry.id;
 
-                let timeStr = this.formatTime(entry.timestamp);
+                let timeStr = '';
+                if (isFuture) {
+                    timeStr += this.formatDateHeader(entry.timestamp) + ' ';
+                }
+                timeStr += this.formatTime(entry.timestamp);
+
                 if (entry.endTimestamp) {
-                    timeStr += ` ～ ${this.formatTime(entry.endTimestamp)}`;
+                    timeStr += ` ～ `;
+                    if (isFuture) {
+                        const startD = new Date(entry.timestamp);
+                        const endD = new Date(entry.endTimestamp);
+                        if (startD.getDate() !== endD.getDate() || startD.getMonth() !== endD.getMonth() || startD.getFullYear() !== endD.getFullYear()) {
+                            timeStr += this.formatDateHeader(entry.endTimestamp) + ' ';
+                        }
+                    }
+                    timeStr += this.formatTime(entry.endTimestamp);
                 }
 
                 const pendingHtml = entry.syncStatus === 'pending' ? '<span class="pending-mark">●</span>' : '';
