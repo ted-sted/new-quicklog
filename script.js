@@ -1,622 +1,4 @@
-<!DOCTYPE html>
-<html lang="ja">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>QuickLog</title>
-
-    <!-- PWA Settings -->
-    <link rel="manifest" href="manifest.json?v=1.1">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="QuickLog">
-    <link rel="apple-touch-icon" href="icon-192.png">
-
-    <style>
-        :root {
-            --bg-dark: #1c1c2e;
-            --bg-light: #f2f2f7;
-            --accent-blue: #0a84ff;
-            --accent-red: #ff3b30;
-            --text-main: #ffffff;
-            --text-dark: #333333;
-            --text-gray: #8e8e93;
-            --border-color: #d1d1d6;
-
-            /* Safe area for iOS */
-            --safe-top: env(safe-area-inset-top, 0px);
-            --safe-bottom: env(safe-area-inset-bottom, 0px);
-            --header-height: calc(50px + var(--safe-top));
-            --input-area-min-height: calc(120px + var(--safe-bottom));
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
-            background-color: var(--bg-light);
-            color: var(--text-dark);
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* --- Header --- */
-        header {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            padding: var(--safe-top) 16px 0;
-            height: var(--header-height);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
-            z-index: 10;
-        }
-
-        .header-title {
-            font-weight: bold;
-            font-size: 1.2rem;
-        }
-
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .sync-btn {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 1.2rem;
-            position: relative;
-            cursor: pointer;
-            padding: 4px;
-        }
-
-        .sync-badge {
-            position: absolute;
-            top: -2px;
-            right: -6px;
-            background-color: var(--accent-red);
-            color: white;
-            font-size: 0.6rem;
-            font-weight: bold;
-            min-width: 16px;
-            height: 16px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 4px;
-        }
-
-        .disconnect-btn {
-            background-color: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            cursor: pointer;
-        }
-
-        /* --- List Area --- */
-        .list-area {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 16px 16px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .date-header {
-            font-size: 0.85rem;
-            font-weight: bold;
-            color: var(--text-gray);
-            margin-top: 8px;
-            margin-bottom: 4px;
-        }
-
-        .entry-container {
-            position: relative;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            flex-shrink: 0;
-            width: 100%;
-        }
-
-        .delete-action-bg {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100%;
-            height: 100%;
-            background-color: var(--accent-red);
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            padding-right: 20px;
-            color: white;
-            font-size: 1.5rem;
-            z-index: 1;
-        }
-
-        .entry-card {
-            background-color: white;
-            padding: 12px 16px;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            z-index: 2;
-            transition: transform 0.3s ease;
-        }
-
-        .entry-card.future {
-            border-left: 4px solid var(--accent-blue);
-        }
-
-        .entry-time {
-            font-size: 0.8rem;
-            color: var(--text-gray);
-        }
-
-        .entry-content {
-            font-size: 1rem;
-            line-height: 1.4;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-
-        .pending-mark {
-            color: #d1d1d6;
-            margin-left: 6px;
-            font-size: 0.8rem;
-        }
-
-        .edit-btn {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: none;
-            border: none;
-            color: var(--text-gray);
-            font-size: 1rem;
-            cursor: pointer;
-        }
-
-        .empty-state {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: var(--text-gray);
-            gap: 16px;
-            text-align: center;
-        }
-
-        .import-btn {
-            background-color: var(--accent-blue);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        /* --- Input Area --- */
-        .input-area {
-            background-color: white;
-            border-top: 1px solid var(--border-color);
-            padding: 12px 16px calc(12px + var(--safe-bottom));
-            flex-shrink: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .mode-switches {
-            display: flex;
-            gap: 8px;
-        }
-
-        .mode-btn {
-            flex: 1;
-            padding: 8px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .mode-now {
-            background-color: var(--bg-dark);
-            color: white;
-        }
-
-        .mode-now.inactive {
-            background-color: var(--border-color);
-            color: var(--text-gray);
-        }
-
-        .mode-plan {
-            background-color: var(--accent-blue);
-            color: white;
-        }
-
-        .mode-plan.inactive {
-            background-color: var(--border-color);
-            color: var(--text-gray);
-        }
-
-        .datetime-inputs {
-            display: flex;
-            flex-direction: row;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .datetime-inputs.hidden {
-            display: none !important;
-        }
-
-        .datetime-input {
-            flex: 1;
-            padding: 8px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            background-color: var(--bg-light);
-            font-family: inherit;
-        }
-
-        .input-row {
-            display: flex;
-            align-items: flex-end;
-            gap: 8px;
-        }
-
-        .icon-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 18px;
-            background-color: var(--bg-light);
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-
-        .icon-btn.recording {
-            background-color: var(--accent-red);
-            color: white;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(1);
-            }
-
-            50% {
-                transform: scale(1.1);
-            }
-
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        .text-input {
-            flex-grow: 1;
-            min-height: 40px;
-            max-height: 110px;
-            padding: 10px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            font-size: 1rem;
-            resize: none;
-            font-family: inherit;
-            line-height: 1.4;
-            background-color: var(--bg-light);
-        }
-
-        .text-input:focus {
-            outline: none;
-            border-color: var(--accent-blue);
-            background-color: white;
-        }
-
-        .send-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 20px;
-            background-color: var(--bg-dark);
-            color: white;
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-
-        .send-btn:disabled {
-            background-color: var(--border-color);
-            cursor: not-allowed;
-        }
-
-        /* --- Modals --- */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .modal-overlay.active {
-            display: flex;
-            opacity: 1;
-        }
-
-        .modal-content {
-            background-color: white;
-            width: 90%;
-            max-width: 400px;
-            border-radius: 16px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        }
-
-        .modal-title {
-            font-size: 1.1rem;
-            font-weight: bold;
-            text-align: center;
-        }
-
-        .location-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-
-        .location-item {
-            padding: 12px;
-            background-color: var(--bg-light);
-            border-radius: 8px;
-            border: none;
-            text-align: left;
-            font-size: 0.95rem;
-            cursor: pointer;
-        }
-
-        .location-item:active {
-            background-color: var(--border-color);
-        }
-
-        /* Edit Modal specifically */
-        .edit-fields {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .edit-textarea {
-            width: 100%;
-            height: 100px;
-            padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 1rem;
-            resize: none;
-            font-family: inherit;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 8px;
-        }
-
-        .modal-btn {
-            flex: 1;
-            padding: 12px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-
-        .btn-cancel {
-            background-color: var(--bg-light);
-            color: var(--text-dark);
-        }
-
-        .btn-save {
-            background-color: var(--bg-dark);
-            color: white;
-        }
-
-        .btn-delete {
-            background-color: white;
-            color: var(--accent-red);
-            border: 1px solid var(--accent-red);
-        }
-
-        /* --- Toasts & Banners --- */
-        .toast {
-            position: fixed;
-            bottom: calc(var(--input-area-min-height) + 20px);
-            left: 50%;
-            transform: translateX(-50%) translateY(20px);
-            background-color: rgba(28, 28, 46, 0.9);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.3s;
-            z-index: 50;
-        }
-
-        .toast.show {
-            transform: translateX(-50%) translateY(0);
-            opacity: 1;
-        }
-
-        .error-banner {
-            position: fixed;
-            top: var(--header-height);
-            left: 0;
-            right: 0;
-            background-color: var(--accent-red);
-            color: white;
-            padding: 10px 16px;
-            font-size: 0.9rem;
-            text-align: center;
-            transform: translateY(-100%);
-            transition: transform 0.3s;
-            z-index: 5;
-        }
-
-        .error-banner.show {
-            transform: translateY(0);
-        }
-    </style>
-</head>
-
-<body>
-
-    <!-- Header -->
-    <header>
-        <div class="header-title">QuickLog</div>
-        <div class="header-controls">
-            <span id="headerTotalCount" style="font-size: 0.8rem; opacity: 0.8;">0件</span>
-            <button class="sync-btn" id="btnSync" title="カレンダー同期">
-                📅
-                <div class="sync-badge" id="syncBadge" style="display: none;">0</div>
-            </button>
-            <button class="disconnect-btn" id="btnDisconnect" style="display: none;">連携解除</button>
-        </div>
-    </header>
-
-    <!-- Error Banner -->
-    <div class="error-banner" id="errorBanner">エラーが発生しました</div>
-
-    <!-- List Area -->
-    <div class="list-area" id="listArea">
-        <!-- JS will populate items here -->
-
-        <div class="empty-state" id="emptyState">
-            <div>記録がありません</div>
-        </div>
-
-        <div class="import-section" id="importSection"
-            style="text-align: center; margin-top: 20px; padding-bottom: 20px;">
-            <button class="import-btn" id="btnImport">過去の記録をGoogleカレンダーから読み込む</button>
-            <div style="font-size: 0.8rem; color: var(--text-gray); margin-top: 8px;">※初回利用時のみ推奨</div>
-        </div>
-    </div>
-
-    <!-- Input Area -->
-    <div class="input-area" id="inputArea">
-        <div class="mode-switches">
-            <button class="mode-btn mode-now" id="btnModeNow">今すぐ記録</button>
-            <button class="mode-btn mode-plan inactive" id="btnModePlan">予定を追加</button>
-        </div>
-
-        <div class="datetime-inputs hidden" id="datetimeInputs">
-            <input type="datetime-local" class="datetime-input" id="inputStartDt">
-            <span style="color: var(--text-gray)">～</span>
-            <input type="datetime-local" class="datetime-input" id="inputEndDt">
-        </div>
-
-        <div class="input-row">
-            <button class="icon-btn" id="btnClock" title="時刻を指定">🕒</button>
-            <button class="icon-btn" id="btnLocation" title="現在地を取得">📍</button>
-            <button class="icon-btn" id="btnVoice" title="音声入力">🎤</button>
-            <textarea class="text-input" id="inputText" placeholder="ここに入力..." rows="1"></textarea>
-            <button class="send-btn" id="btnSend" disabled>↑</button>
-        </div>
-    </div>
-
-    <!-- Location Modal -->
-    <div class="modal-overlay" id="locationModal">
-        <div class="modal-content">
-            <div class="modal-title">現在地の候補</div>
-            <div id="locationLoading" style="text-align: center; color: var(--text-gray); padding: 20px 0;">
-                取得中...
-            </div>
-            <div class="location-list" id="locationList">
-                <!-- Location items will go here -->
-            </div>
-            <button class="modal-btn btn-cancel" onclick="app.closeLocationModal()">キャンセル</button>
-        </div>
-    </div>
-
-    <!-- Edit Modal -->
-    <div class="modal-overlay" id="editModal">
-        <div class="modal-content">
-            <div class="modal-title">記録の編集</div>
-            <div class="edit-fields">
-                <input type="datetime-local" class="datetime-input" id="editStartDt">
-                <input type="datetime-local" class="datetime-input" id="editEndDt">
-                <textarea class="edit-textarea" id="editText"></textarea>
-            </div>
-
-            <div class="modal-actions">
-                <button class="modal-btn btn-delete" id="btnEditDelete">削除</button>
-                <div style="flex: 1; display:flex; gap: 8px;">
-                    <button class="modal-btn btn-cancel" onclick="app.closeEditModal()">キャンセル</button>
-                    <button class="modal-btn btn-save" id="btnEditSave">保存</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toast Notification -->
-    <div class="toast" id="toast">記録しました ✓</div>
-
-    <script>
-        // Placeholder for Application Logic (app.js)
+﻿        // Placeholder for Application Logic (app.js)
         const app = {
             db: null,
             tokenClient: null,
@@ -643,13 +25,13 @@
                     // Init Google Identity Services
                     this.initGIS();
                 } catch (e) {
-                    this.showError('データーベースエラー: ' + e.message);
+                    this.showError('繝・・繧ｿ繝ｼ繝吶・繧ｹ繧ｨ繝ｩ繝ｼ: ' + e.message);
                 }
             },
 
             openDB: function () {
                 return new Promise((resolve, reject) => {
-                    // バージョンを2に上げて、以前のQuickLogDBがある場合でも確実にアップグレード（インデックス作成）を走らせる
+                    // 繝舌・繧ｸ繝ｧ繝ｳ繧・縺ｫ荳翫￡縺ｦ縲∽ｻ･蜑阪・QuickLogDB縺後≠繧句ｴ蜷医〒繧ら｢ｺ螳溘↓繧｢繝・・繧ｰ繝ｬ繝ｼ繝会ｼ医う繝ｳ繝・ャ繧ｯ繧ｹ菴懈・・峨ｒ襍ｰ繧峨○繧・
                     const request = indexedDB.open('QuickLogDB', 2);
 
                     request.onupgradeneeded = (e) => {
@@ -728,10 +110,10 @@
                     d1.getMonth() === d2.getMonth() &&
                     d1.getFullYear() === d2.getFullYear();
 
-                if (isSameDay(date, today)) return '今日';
-                if (isSameDay(date, yesterday)) return '昨日';
+                if (isSameDay(date, today)) return '莉頑律';
+                if (isSameDay(date, yesterday)) return '譏ｨ譌･';
 
-                const days = ['日', '月', '火', '水', '木', '金', '土'];
+                const days = ['譌･', '譛・, '轣ｫ', '豌ｴ', '譛ｨ', '驥・, '蝨・];
                 return `${date.getMonth() + 1}/${date.getDate()}(${days[date.getDay()]})`;
             },
 
@@ -754,7 +136,7 @@
                 // Filter out delete_pending
                 const visibleEntries = entries.filter(e => e.syncStatus !== 'delete_pending');
 
-                document.getElementById('headerTotalCount').textContent = visibleEntries.length + '件';
+                document.getElementById('headerTotalCount').textContent = visibleEntries.length + '莉ｶ';
 
                 if (visibleEntries.length === 0) {
                     emptyState.style.display = 'flex';
@@ -762,19 +144,19 @@
                     emptyState.style.display = 'none';
                 }
 
-                // 初回インポートボタンの表示制御（すでにGCal由来のデータがあれば隠す）
+                // 蛻晏屓繧､繝ｳ繝昴・繝医・繧ｿ繝ｳ縺ｮ陦ｨ遉ｺ蛻ｶ蠕｡・医☆縺ｧ縺ｫGCal逕ｱ譚･縺ｮ繝・・繧ｿ縺後≠繧後・髫縺呻ｼ・
                 const hasImported = entries.some(e => e.gcalId && e.syncStatus === 'synced');
                 document.getElementById('importSection').style.display = hasImported ? 'none' : 'block';
 
                 const now = Date.now();
                 const pastEntries = visibleEntries.filter(e => e.timestamp <= now).sort((a, b) => b.timestamp - a.timestamp);
-                const futureEntries = visibleEntries.filter(e => e.timestamp > now).sort((a, b) => a.timestamp - b.timestamp); // 今に近い予定から表示
+                const futureEntries = visibleEntries.filter(e => e.timestamp > now).sort((a, b) => a.timestamp - b.timestamp); // 莉翫↓霑代＞莠亥ｮ壹°繧芽｡ｨ遉ｺ
 
                 // Render Future Entries
                 if (futureEntries.length > 0) {
                     const header = document.createElement('div');
                     header.className = 'date-header';
-                    header.textContent = '⏰ 予定';
+                    header.textContent = '竢ｰ 莠亥ｮ・;
                     listArea.appendChild(header);
 
                     futureEntries.forEach(entry => this.appendEntryCard(listArea, entry, true));
@@ -801,7 +183,7 @@
 
                 const deleteBg = document.createElement('div');
                 deleteBg.className = 'delete-action-bg';
-                deleteBg.textContent = '🗑️';
+                deleteBg.textContent = '卵・・;
 
                 const card = document.createElement('div');
                 card.className = `entry-card ${isFuture ? 'future' : ''}`;
@@ -809,15 +191,15 @@
 
                 let timeStr = this.formatTime(entry.timestamp);
                 if (entry.endTimestamp) {
-                    timeStr += ` ～ ${this.formatTime(entry.endTimestamp)}`;
+                    timeStr += ` ・・${this.formatTime(entry.endTimestamp)}`;
                 }
 
-                const pendingHtml = entry.syncStatus === 'pending' ? '<span class="pending-mark">●</span>' : '';
+                const pendingHtml = entry.syncStatus === 'pending' ? '<span class="pending-mark">笳・/span>' : '';
 
                 card.innerHTML = `
                     <div class="entry-time">${timeStr}</div>
                     <div class="entry-content">${this.escapeHTML(entry.content)}${pendingHtml}</div>
-                    <button class="edit-btn" onclick="app.openEditModal('${entry.id}')">✏️</button>
+                    <button class="edit-btn" onclick="app.openEditModal('${entry.id}')">笨擾ｸ・/button>
                 `;
 
                 // Swipe logic
@@ -848,7 +230,7 @@
                     if (diffX < -70) {
                         card.style.transform = `translateX(-100%)`;
                         setTimeout(() => {
-                            if (confirm('この記録を削除しますか？')) {
+                            if (confirm('縺薙・險倬鹸繧貞炎髯､縺励∪縺吶°・・)) {
                                 this.deleteEntry(entry.id);
                             } else {
                                 card.style.transform = `translateX(0)`;
@@ -892,9 +274,9 @@
 
                     await this.renderList();
                     this.updateSyncBadge();
-                    this.showToast('削除しました');
+                    this.showToast('蜑企勁縺励∪縺励◆');
                 } catch (e) {
-                    this.showError('削除に失敗しました');
+                    this.showError('蜑企勁縺ｫ螟ｱ謨励＠縺ｾ縺励◆');
                 }
             },
 
@@ -939,7 +321,7 @@
                     const endVal = document.getElementById('inputEndDt').value;
 
                     if (!startVal) {
-                        this.showError('開始日時を入力してください');
+                        this.showError('髢句ｧ区律譎ゅｒ蜈･蜉帙＠縺ｦ縺上□縺輔＞');
                         return;
                     }
 
@@ -947,7 +329,7 @@
                     if (endVal) {
                         endTs = new Date(endVal).getTime();
                         if (endTs <= startTs) {
-                            this.showError('終了日時は開始日時より後である必要があります');
+                            this.showError('邨ゆｺ・律譎ゅ・髢句ｧ区律譎ゅｈ繧雁ｾ後〒縺ゅｋ蠢・ｦ√′縺ゅｊ縺ｾ縺・);
                             return;
                         }
                     }
@@ -974,19 +356,19 @@
                     if (isPlanMode) {
                         // Switch back to normal mode
                         document.getElementById('btnModeNow').click();
-                        this.showToast('予定を追加しました ✓');
+                        this.showToast('莠亥ｮ壹ｒ霑ｽ蜉縺励∪縺励◆ 笨・);
                     } else {
                         this.timeToggled = false;
                         document.getElementById('datetimeInputs').classList.add('hidden');
                         document.getElementById('btnClock').style.backgroundColor = 'var(--bg-light)';
                         document.getElementById('btnClock').style.display = 'flex';
-                        this.showToast('記録しました ✓');
+                        this.showToast('險倬鹸縺励∪縺励◆ 笨・);
                     }
 
                     await this.renderList();
                     this.updateSyncBadge();
                 } catch (e) {
-                    this.showError('保存に失敗しました');
+                    this.showError('菫晏ｭ倥↓螟ｱ謨励＠縺ｾ縺励◆');
                 }
             },
 
@@ -1153,7 +535,7 @@
 
                     document.getElementById('editModal').classList.add('active');
                 } catch (e) {
-                    this.showError('エントリの読み込みに失敗しました');
+                    this.showError('繧ｨ繝ｳ繝医Μ縺ｮ隱ｭ縺ｿ霎ｼ縺ｿ縺ｫ螟ｱ謨励＠縺ｾ縺励◆');
                 }
             },
 
@@ -1165,7 +547,7 @@
                     const txt = document.getElementById('editText').value.trim();
 
                     if (!sv || !txt) {
-                        this.showError('必須項目が入力されていません');
+                        this.showError('蠢・磯・岼縺悟・蜉帙＆繧後※縺・∪縺帙ｓ');
                         return;
                     }
 
@@ -1183,7 +565,7 @@
                     await this.renderList();
                     this.updateSyncBadge();
                 } catch (e) {
-                    this.showError('保存に失敗しました: ' + e.message);
+                    this.showError('菫晏ｭ倥↓螟ｱ謨励＠縺ｾ縺励◆: ' + e.message);
                 }
             },
 
@@ -1213,7 +595,7 @@
                     await this.renderList();
                     this.updateSyncBadge();
                 } catch (e) {
-                    this.showError('削除に失敗しました: ' + e.message);
+                    this.showError('蜑企勁縺ｫ螟ｱ謨励＠縺ｾ縺励◆: ' + e.message);
                 }
             },
 
@@ -1228,7 +610,7 @@
                 loading.style.display = 'block';
 
                 if (!navigator.geolocation) {
-                    this.showError('現在地機能がサポートされていません');
+                    this.showError('迴ｾ蝨ｨ蝨ｰ讖溯・縺後し繝昴・繝医＆繧後※縺・∪縺帙ｓ');
                     this.closeLocationModal();
                     return;
                 }
@@ -1281,18 +663,18 @@
 
                         } catch (e) {
                             loading.style.display = 'none';
-                            this.showError('地点情報の取得に失敗しました');
+                            this.showError('蝨ｰ轤ｹ諠・ｱ縺ｮ蜿門ｾ励↓螟ｱ謨励＠縺ｾ縺励◆');
                             this.closeLocationModal();
                         }
                     },
                     (err) => {
                         loading.style.display = 'none';
                         if (err.code === err.PERMISSION_DENIED) {
-                            this.showError('位置情報の許可が必要です');
+                            this.showError('菴咲ｽｮ諠・ｱ縺ｮ險ｱ蜿ｯ縺悟ｿ・ｦ√〒縺・);
                         } else if (err.code === err.TIMEOUT) {
-                            this.showError('位置情報の取得がタイムアウトしました');
+                            this.showError('菴咲ｽｮ諠・ｱ縺ｮ蜿門ｾ励′繧ｿ繧､繝繧｢繧ｦ繝医＠縺ｾ縺励◆');
                         } else {
-                            this.showError('現在地の取得に失敗しました');
+                            this.showError('迴ｾ蝨ｨ蝨ｰ縺ｮ蜿門ｾ励↓螟ｱ謨励＠縺ｾ縺励◆');
                         }
                         this.closeLocationModal();
                     },
@@ -1312,7 +694,7 @@
 
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                 if (!SpeechRecognition) {
-                    this.showError('音声入力がサポートされていません');
+                    this.showError('髻ｳ螢ｰ蜈･蜉帙′繧ｵ繝昴・繝医＆繧後※縺・∪縺帙ｓ');
                     return;
                 }
 
@@ -1320,13 +702,13 @@
                     this.recognition = new SpeechRecognition();
                     this.recognition.lang = 'ja-JP';
                     this.recognition.interimResults = true;
-                    this.recognition.continuous = false; // changed back to false for better mobile support
+                    this.recognition.continuous = false;
 
                     this.recognition.onstart = () => {
                         this.isRecording = true;
                         btnVoice.classList.add('recording');
-                        btnVoice.textContent = '⏹';
-                        this.voiceStartText = inputText.value; // Store text AT START of recording
+                        btnVoice.textContent = '竢ｹ';
+                        this.voiceStartText = inputText.value;
                     };
 
                     this.recognition.onresult = (event) => {
@@ -1341,26 +723,18 @@
                             }
                         }
 
-                        // Use voiceStartText stored at onstart
                         const currentText = this.voiceStartText + (this.voiceStartText && (finalTranscript || interimTranscript) ? ' ' : '');
                         inputText.value = currentText + finalTranscript + interimTranscript;
                         inputText.dispatchEvent(new Event('input')); // trigger resize
 
-                        // If we received a final transcript, update the base text
                         if (finalTranscript) {
-                            this.voiceStartText = this.voiceStartText + (this.voiceStartText ? ' ' : '') + finalTranscript;
+                            this.voiceStartText = inputText.value;
                         }
                     };
 
                     this.recognition.onerror = (event) => {
                         if (event.error !== 'no-speech') {
-                            const errorMap = {
-                                'audio-capture': 'マイクが見つかりません',
-                                'not-allowed': 'マイクの使用が許可されていません',
-                                'network': 'ネットワークエラーが発生しました',
-                                'aborted': '音声入力が中断されました'
-                            };
-                            this.showError('音声入力エラー: ' + (errorMap[event.error] || event.error));
+                            this.showError('髻ｳ螢ｰ蜈･蜉帙お繝ｩ繝ｼ: ' + event.error);
                         }
                         this.stopRecording();
                     };
@@ -1379,7 +753,7 @@
                 this.isRecording = false;
                 const btnVoice = document.getElementById('btnVoice');
                 btnVoice.classList.remove('recording');
-                btnVoice.textContent = '🎤';
+                btnVoice.textContent = '痔';
                 document.getElementById('inputText').focus();
             },
 
@@ -1411,7 +785,7 @@
                             }
                             this.pendingAuthAction = null;
                         } else {
-                            this.showError('Google認証に失敗しました');
+                            this.showError('Google隱崎ｨｼ縺ｫ螟ｱ謨励＠縺ｾ縺励◆');
                         }
                     }
                 });
@@ -1455,22 +829,22 @@
                 localStorage.removeItem('ql_expiry');
                 if (this.refreshTimer) clearTimeout(this.refreshTimer);
                 this.updateAuthUI(false);
-                this.showToast('連携を解除しました');
+                this.showToast('騾｣謳ｺ繧定ｧ｣髯､縺励∪縺励◆');
             },
 
             requestSync: async function () {
                 if (!this.tokenClient) {
-                    this.showError('Google連携の準備中です');
+                    this.showError('Google騾｣謳ｺ縺ｮ貅門ｙ荳ｭ縺ｧ縺・);
                     return;
                 }
 
                 if (this.accessToken && this.tokenExpiry && this.tokenExpiry > Date.now()) {
-                    // 同期処理を完了させてからGoogleカレンダーを開く
-                    this.showToast('カレンダーに同期中です...');
+                    // 蜷梧悄蜃ｦ逅・ｒ螳御ｺ・＆縺帙※縺九ｉGoogle繧ｫ繝ｬ繝ｳ繝繝ｼ繧帝幕縺・
+                    this.showToast('繧ｫ繝ｬ繝ｳ繝繝ｼ縺ｫ蜷梧悄荳ｭ縺ｧ縺・..');
                     await this.doSync();
                     window.open('https://calendar.google.com/', '_blank');
                 } else {
-                    // 未認証の場合はポップアップ競合を避けるためカレンダーを開かず、認証フローのみ開始する
+                    // 譛ｪ隱崎ｨｼ縺ｮ蝣ｴ蜷医・繝昴ャ繝励い繝・・遶ｶ蜷医ｒ驕ｿ縺代ｋ縺溘ａ繧ｫ繝ｬ繝ｳ繝繝ｼ繧帝幕縺九★縲∬ｪ崎ｨｼ繝輔Ο繝ｼ縺ｮ縺ｿ髢句ｧ九☆繧・
                     this.pendingAuthAction = 'sync';
                     this.tokenClient.requestAccessToken({ prompt: '' });
                 }
@@ -1482,7 +856,7 @@
                     const targets = entries.filter(e => e.syncStatus === 'pending' || e.syncStatus === 'delete_pending');
 
                     if (targets.length === 0) {
-                        this.showToast('同期済みです ✓');
+                        this.showToast('蜷梧悄貂医∩縺ｧ縺・笨・);
                         return;
                     }
 
@@ -1530,23 +904,23 @@
                     }
 
                     if (failCount > 0) {
-                        this.showError(`${failCount}件のエラーが発生しました`);
+                        this.showError(`${failCount}莉ｶ縺ｮ繧ｨ繝ｩ繝ｼ縺檎匱逕溘＠縺ｾ縺励◆`);
                     } else if (successCount > 0) {
-                        this.showToast(`${successCount}件同期しました ✓`);
+                        this.showToast(`${successCount}莉ｶ蜷梧悄縺励∪縺励◆ 笨伝);
                     }
 
                     await this.renderList();
                     this.updateSyncBadge();
                 } catch (e) {
                     if (e.status !== 401) {
-                        this.showError('同期処理でエラーが発生しました');
+                        this.showError('蜷梧悄蜃ｦ逅・〒繧ｨ繝ｩ繝ｼ縺檎匱逕溘＠縺ｾ縺励◆');
                     }
                 }
             },
 
             importFromGCal: function () {
                 if (!this.tokenClient) {
-                    this.showError('Google連携の準備中です');
+                    this.showError('Google騾｣謳ｺ縺ｮ貅門ｙ荳ｭ縺ｧ縺・);
                     return;
                 }
 
@@ -1561,7 +935,7 @@
             doImport: async function () {
                 const btn = document.getElementById('btnImport');
                 btn.disabled = true;
-                btn.textContent = '読み込み中...';
+                btn.textContent = '隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ...';
 
                 try {
                     const timeMin = new Date();
@@ -1596,18 +970,18 @@
                         imported++;
                     }
 
-                    this.showToast(`${imported}件読み込みました`);
+                    this.showToast(`${imported}莉ｶ隱ｭ縺ｿ霎ｼ縺ｿ縺ｾ縺励◆`);
                     await this.renderList();
                     this.updateSyncBadge();
                 } catch (e) {
                     if (e.status === 401) {
                         this.disconnectGoogle();
                     } else {
-                        this.showError('読み込みに失敗しました');
+                        this.showError('隱ｭ縺ｿ霎ｼ縺ｿ縺ｫ螟ｱ謨励＠縺ｾ縺励◆');
                     }
                 } finally {
                     btn.disabled = false;
-                    btn.textContent = '過去の記録をGoogleカレンダーから読み込む';
+                    btn.textContent = '驕主悉縺ｮ險倬鹸繧竪oogle繧ｫ繝ｬ繝ｳ繝繝ｼ縺九ｉ隱ｭ縺ｿ霎ｼ繧';
 
                     const existingEntries = await this.getAllEntries();
                     const hasImported = existingEntries.some(e => e.gcalId && e.syncStatus === 'synced');
@@ -1624,42 +998,3 @@
                 const conf = { method, headers };
                 if (body) conf.body = JSON.stringify(body);
 
-                const res = await fetch(`https://www.googleapis.com/calendar/v3${path}`, conf);
-                if (!res.ok) {
-                    const err = new Error('GCal API Error');
-                    err.status = res.status;
-                    throw err;
-                }
-
-                if (method !== 'DELETE') {
-                    return res.json();
-                }
-                return null;
-            }
-        };
-
-        // Boot
-        window.addEventListener('load', () => {
-            app.init();
-
-            // Check speech support
-            if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
-                document.getElementById('btnVoice').style.opacity = '0.3';
-                document.getElementById('btnVoice').title = '非対応ブラウザ';
-            }
-        });
-
-        // Handle returning from background / other tabs
-        window.addEventListener('pageshow', (e) => {
-            if (e.persisted && app.db) {
-                app.renderList();
-                app.updateSyncBadge();
-            }
-        });
-    </script>
-
-    <!-- Google Identity Services (Load async) -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-</body>
-
-</html>
