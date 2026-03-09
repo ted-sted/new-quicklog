@@ -130,15 +130,38 @@
             margin-bottom: 4px;
         }
 
+        .entry-container {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .delete-action-bg {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--accent-red);
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding-right: 20px;
+            color: white;
+            font-size: 1.5rem;
+            z-index: 1;
+        }
+
         .entry-card {
             background-color: white;
-            border-radius: 12px;
             padding: 12px 16px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             position: relative;
             display: flex;
             flex-direction: column;
             gap: 8px;
+            z-index: 2;
+            transition: transform 0.3s ease;
         }
 
         .entry-card.future {
@@ -248,6 +271,10 @@
             flex-direction: row;
             gap: 8px;
             align-items: center;
+        }
+
+        .datetime-inputs.hidden {
+            display: none !important;
         }
 
         .datetime-input {
@@ -534,13 +561,14 @@
             <button class="mode-btn mode-plan inactive" id="btnModePlan">予定を追加</button>
         </div>
 
-        <div class="datetime-inputs" id="datetimeInputs">
+        <div class="datetime-inputs hidden" id="datetimeInputs">
             <input type="datetime-local" class="datetime-input" id="inputStartDt">
             <span style="color: var(--text-gray)">～</span>
             <input type="datetime-local" class="datetime-input" id="inputEndDt">
         </div>
 
         <div class="input-row">
+            <button class="icon-btn" id="btnClock" title="時刻を指定">🕒</button>
             <button class="icon-btn" id="btnLocation" title="現在地を取得">📍</button>
             <button class="icon-btn" id="btnVoice" title="音声入力">🎤</button>
             <textarea class="text-input" id="inputText" placeholder="ここに入力..." rows="1"></textarea>
@@ -590,9 +618,9 @@
         const app = {
             db: null,
             tokenClient: null,
-            accessToken: null,
             tokenExpiry: null,
             refreshTimer: null,
+            timeToggled: false,
             clientId: '168669644981-at642rkfpbj1v4mbjtj1rd4osqn9uea9.apps.googleusercontent.com',
             currentEditId: null,
             pendingAuthAction: null,
@@ -766,6 +794,13 @@
             },
 
             appendEntryCard: function (container, entry, isFuture) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'entry-container';
+
+                const deleteBg = document.createElement('div');
+                deleteBg.className = 'delete-action-bg';
+                deleteBg.textContent = '🗑️';
+
                 const card = document.createElement('div');
                 card.className = `entry-card ${isFuture ? 'future' : ''}`;
                 card.dataset.id = entry.id;
@@ -783,6 +818,45 @@
                     <button class="edit-btn" onclick="app.openEditModal('${entry.id}')">✏️</button>
                 `;
 
+                // Swipe logic
+                let startX = 0;
+                let currentX = 0;
+                let isDragging = false;
+
+                card.addEventListener('touchstart', (e) => {
+                    startX = e.touches[0].clientX;
+                    isDragging = true;
+                    card.style.transition = 'none';
+                }, { passive: true });
+
+                card.addEventListener('touchmove', (e) => {
+                    if (!isDragging) return;
+                    currentX = e.touches[0].clientX;
+                    const diffX = currentX - startX;
+                    if (diffX < 0) { // dragging left
+                        card.style.transform = `translateX(${Math.max(diffX, -100)}px)`;
+                    }
+                }, { passive: true });
+
+                card.addEventListener('touchend', (e) => {
+                    if (!isDragging) return;
+                    isDragging = false;
+                    card.style.transition = 'transform 0.3s ease';
+                    const diffX = currentX - startX;
+                    if (diffX < -70) {
+                        card.style.transform = `translateX(-100%)`;
+                        setTimeout(() => {
+                            if (confirm('この記録を削除しますか？')) {
+                                this.deleteEntry(entry.id);
+                            } else {
+                                card.style.transform = `translateX(0)`;
+                            }
+                        }, 300);
+                    } else {
+                        card.style.transform = `translateX(0)`;
+                    }
+                });
+
                 // Tap to edit
                 card.addEventListener('click', (e) => {
                     if (e.target.tagName !== 'BUTTON') {
@@ -790,7 +864,36 @@
                     }
                 });
 
-                container.appendChild(card);
+                wrapper.appendChild(deleteBg);
+                wrapper.appendChild(card);
+                container.appendChild(wrapper);
+            },
+
+            deleteEntry: async function (id) {
+                try {
+                    const entries = await this.getAllEntries();
+                    const entry = entries.find(e => e.id === id);
+                    if (!entry) return;
+
+                    if (entry.syncStatus === 'synced' && entry.gcalId) {
+                        entry.syncStatus = 'delete_pending';
+                        await this.saveEntry(entry);
+                    } else {
+                        const transaction = this.db.transaction(['entries'], 'readwrite');
+                        const store = transaction.objectStore('entries');
+                        store.delete(id);
+                        await new Promise((resolve, reject) => {
+                            transaction.oncomplete = () => resolve();
+                            transaction.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+
+                    await this.renderList();
+                    this.updateSyncBadge();
+                    this.showToast('削除しました');
+                } catch (e) {
+                    this.showError('削除に失敗しました');
+                }
             },
 
             escapeHTML: function (str) {
@@ -829,21 +932,25 @@
                 let startTs, endTs = null;
                 let colorId = isPlanMode ? '3' : null;
 
-                const startVal = document.getElementById('inputStartDt').value;
-                const endVal = document.getElementById('inputEndDt').value;
+                if (isPlanMode || this.timeToggled) {
+                    const startVal = document.getElementById('inputStartDt').value;
+                    const endVal = document.getElementById('inputEndDt').value;
 
-                if (!startVal) {
-                    this.showError('開始日時を入力してください');
-                    return;
-                }
-
-                startTs = new Date(startVal).getTime();
-                if (endVal) {
-                    endTs = new Date(endVal).getTime();
-                    if (endTs <= startTs) {
-                        this.showError('終了日時は開始日時より後である必要があります');
+                    if (!startVal) {
+                        this.showError('開始日時を入力してください');
                         return;
                     }
+
+                    startTs = new Date(startVal).getTime();
+                    if (endVal) {
+                        endTs = new Date(endVal).getTime();
+                        if (endTs <= startTs) {
+                            this.showError('終了日時は開始日時より後である必要があります');
+                            return;
+                        }
+                    }
+                } else {
+                    startTs = Date.now();
                 }
 
                 const entry = {
@@ -867,6 +974,10 @@
                         document.getElementById('btnModeNow').click();
                         this.showToast('予定を追加しました ✓');
                     } else {
+                        this.timeToggled = false;
+                        document.getElementById('datetimeInputs').classList.add('hidden');
+                        document.getElementById('btnClock').style.backgroundColor = 'var(--bg-light)';
+                        document.getElementById('btnClock').style.display = 'flex';
                         this.showToast('記録しました ✓');
                     }
 
@@ -899,11 +1010,37 @@
                     document.getElementById('inputEndDt').value = this.toLocalISOString(nowEnd).slice(0, 16);
                 };
 
+                const btnClock = document.getElementById('btnClock');
+                const updateClockVisibility = () => {
+                    const isPlanMode = document.getElementById('btnModePlan').classList.contains('inactive') === false;
+                    if (isPlanMode || this.timeToggled) {
+                        datetimeInputs.classList.remove('hidden');
+                    } else {
+                        datetimeInputs.classList.add('hidden');
+                    }
+                    if (isPlanMode) {
+                        btnClock.style.display = 'none';
+                    } else {
+                        btnClock.style.display = 'flex';
+                        btnClock.style.backgroundColor = this.timeToggled ? 'var(--border-color)' : 'var(--bg-light)';
+                    }
+                };
+
+                btnClock.addEventListener('click', () => {
+                    this.timeToggled = !this.timeToggled;
+                    if (this.timeToggled) {
+                        setNowDefaults();
+                    }
+                    updateClockVisibility();
+                });
+
                 // Mode switching
                 btnModeNow.addEventListener('click', () => {
                     btnModeNow.classList.remove('inactive');
                     btnModePlan.classList.add('inactive');
+                    this.timeToggled = false;
                     setNowDefaults();
+                    updateClockVisibility();
                 });
 
                 btnModePlan.addEventListener('click', () => {
@@ -918,6 +1055,7 @@
 
                     document.getElementById('inputStartDt').value = this.toLocalISOString(tomorrow).slice(0, 16);
                     document.getElementById('inputEndDt').value = this.toLocalISOString(tomorrowEnd).slice(0, 16);
+                    updateClockVisibility();
                 });
 
                 document.getElementById('inputStartDt').addEventListener('change', (e) => {
@@ -961,6 +1099,7 @@
 
                 // Initialize default values for the first time
                 setNowDefaults();
+                updateClockVisibility();
                 document.getElementById('editModal').addEventListener('click', (e) => {
                     if (e.target.id === 'editModal') this.closeEditModal();
                 });
