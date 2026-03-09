@@ -527,14 +527,17 @@
 
     <!-- Header -->
     <header>
-        <div class="header-title">QuickLog</div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="header-title">QuickLog</div>
+            <button class="disconnect-btn" id="btnDisconnect"
+                style="display: none; background-color: transparent; border: 1px solid rgba(255,255,255,0.4);">連携解除</button>
+        </div>
         <div class="header-controls">
             <span id="headerTotalCount" style="font-size: 0.8rem; opacity: 0.8;">0件</span>
             <button class="sync-btn" id="btnSync" title="カレンダー同期">
                 📅
                 <div class="sync-badge" id="syncBadge" style="display: none;">0</div>
             </button>
-            <button class="disconnect-btn" id="btnDisconnect" style="display: none;">連携解除</button>
         </div>
     </header>
 
