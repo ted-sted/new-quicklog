@@ -10,7 +10,7 @@
     <!-- PWA Settings -->
     <link rel="manifest" href="manifest.json?v=1.2">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="QuickLog">
     <link rel="apple-touch-icon" href="icon-192.png?v=1.2">
 
@@ -1153,7 +1153,7 @@
                     } else {
                         this.timeToggled = false;
                         document.getElementById('datetimeInputs').classList.add('hidden');
-                        document.getElementById('btnClock').style.backgroundColor = 'var(--bg-light)';
+                        document.getElementById('btnClock').style.backgroundColor = '';
                         document.getElementById('btnClock').style.display = 'flex';
                         this.showToast('記録しました ✓');
                     }
@@ -1199,7 +1199,7 @@
                         btnClock.style.display = 'none';
                     } else {
                         btnClock.style.display = 'flex';
-                        btnClock.style.backgroundColor = this.timeToggled ? 'var(--border-color)' : 'var(--bg-light)';
+                        btnClock.style.backgroundColor = this.timeToggled ? 'rgba(255,255,255,0.14)' : '';
                     }
                 };
 
