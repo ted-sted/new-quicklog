@@ -45,7 +45,7 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
             background-color: var(--bg-dark);
-            background-image: radial-gradient(ellipse at 0% 0%, rgba(77, 60, 130, 0.3) 0%, transparent 60%);
+            background-image: radial-gradient(ellipse at 20% 10%, rgba(55, 40, 100, 0.25) 0%, transparent 55%);
             color: var(--text-main);
             height: 100vh;
             width: 100vw;
@@ -282,9 +282,9 @@
         /* --- Segmented Toggle (Mode Switch) --- */
         .mode-switches {
             position: relative;
-            background: rgba(255,255,255,0.07);
+            background: rgba(255,255,255,0.06);
             border: 1px solid var(--glass-border);
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 3px;
             display: flex;
             gap: 0;
@@ -292,36 +292,34 @@
 
         .mode-btn {
             flex: 1;
-            padding: 7px 8px;
-            border-radius: 8px;
+            padding: 7px 10px;
+            border-radius: 9px;
             border: none;
             font-weight: 600;
             font-size: 0.82rem;
             cursor: pointer;
-            transition: all 0.22s ease;
+            transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
             background: transparent;
-            color: var(--text-gray);
-            letter-spacing: 0.02em;
-            z-index: 1;
-            position: relative;
+            color: rgba(255,255,255,0.4);
+            letter-spacing: 0.03em;
         }
 
-        .mode-now {
-            color: var(--text-main);
-            background: rgba(255,255,255,0.12);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+        .mode-now:not(.inactive) {
+            color: #1a1a2e;
+            background: rgba(255,255,255,0.92);
+            box-shadow: 0 1px 6px rgba(0,0,0,0.4);
         }
 
         .mode-now.inactive {
-            color: var(--text-gray);
+            color: rgba(255,255,255,0.4);
             background: transparent;
             box-shadow: none;
         }
 
-        .mode-plan {
-            color: var(--accent-blue);
-            background: rgba(77,158,255,0.15);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+        .mode-plan:not(.inactive) {
+            color: white;
+            background: rgba(77,158,255,0.3);
+            box-shadow: 0 1px 6px rgba(77,158,255,0.3);
         }
 
         .mode-plan.inactive {
@@ -849,9 +847,9 @@
                     d1.getMonth() === d2.getMonth() &&
                     d1.getFullYear() === d2.getFullYear();
 
-                if (isSameDay(date, today)) return '今日';
-                if (isSameDay(date, yesterday)) return '昨日';
-                if (isSameDay(date, tomorrow)) return '明日';
+                if (isSameDay(date, today)) return 'Today';
+                if (isSameDay(date, yesterday)) return 'Yesterday';
+                if (isSameDay(date, tomorrow)) return 'Tomorrow';
 
                 const days = ['日', '月', '火', '水', '木', '金', '土'];
                 return `${date.getMonth() + 1}/${date.getDate()}(${days[date.getDay()]})`;
@@ -895,8 +893,8 @@
                 // Render Future Entries
                 if (futureEntries.length > 0) {
                     const header = document.createElement('div');
-                    header.className = 'date-header';
-                    header.textContent = '⏰ 予定';
+                    header.className = 'date-header schedule-header';
+                    header.textContent = 'Schedule';
                     listArea.appendChild(header);
 
                     const maxVisible = 2;
@@ -916,17 +914,17 @@
                         toggleBtn.style.padding = '8px 0';
                         toggleBtn.style.cursor = 'pointer';
                         toggleBtn.style.fontSize = '0.9rem';
-                        toggleBtn.textContent = `他 ${futureEntries.length - maxVisible} 件の予定を表示 ▼`;
+                        toggleBtn.textContent = `+${futureEntries.length - maxVisible} more ▼`;
 
                         toggleBtn.onclick = () => {
                             if (expandContainer.style.display === 'none') {
                                 expandContainer.style.display = 'flex';
                                 expandContainer.style.flexDirection = 'column';
                                 expandContainer.style.gap = '12px';
-                                toggleBtn.textContent = '予定を閉じる ▲';
+                                toggleBtn.textContent = `+${futureEntries.length - maxVisible} more ▲`;
                             } else {
                                 expandContainer.style.display = 'none';
-                                toggleBtn.textContent = `他 ${futureEntries.length - maxVisible} 件の予定を表示 ▼`;
+                                toggleBtn.textContent = `+${futureEntries.length - maxVisible} more ▼`;
                             }
                         };
 
@@ -935,20 +933,28 @@
                     }
                 }
 
-                // Render Past Entries grouped by date
-                let currentDateStr = '';
-                pastEntries.forEach(entry => {
-                    const dateStr = this.formatDateHeader(entry.timestamp);
-                    if (dateStr !== currentDateStr) {
-                        const header = document.createElement('div');
-                        header.className = 'date-header';
-                        header.textContent = dateStr;
-                        listArea.appendChild(header);
-                        currentDateStr = dateStr;
-                    }
-                    this.appendEntryCard(listArea, entry, false);
-                });
+                // Render Past Entries
+                if (pastEntries.length > 0) {
+                    const logHeader = document.createElement('div');
+                    logHeader.className = 'date-header';
+                    logHeader.textContent = 'Log';
+                    listArea.appendChild(logHeader);
+
+                    let currentDateStr = '';
+                    pastEntries.forEach(entry => {
+                        const dateStr = this.formatDateHeader(entry.timestamp);
+                        if (dateStr !== currentDateStr) {
+                            const dateLabel = document.createElement('div');
+                            dateLabel.style.cssText = 'font-size:0.68rem;color:var(--text-gray);padding:4px 2px 2px;letter-spacing:0.04em;';
+                            dateLabel.textContent = dateStr;
+                            listArea.appendChild(dateLabel);
+                            currentDateStr = dateStr;
+                        }
+                        this.appendEntryCard(listArea, entry, false);
+                    });
+                }
             },
+
 
             appendEntryCard: function (container, entry, isFuture) {
                 const wrapper = document.createElement('div');
